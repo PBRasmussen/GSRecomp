@@ -59,10 +59,39 @@ animation frames.
 Test one character's walk cycle through steps 1-4, viewed animated, before
 changing the renderer.
 
+## First test sprite: Isaac's field walk cycle
+
+*The Broken Seal*, walking towards the camera, plus the standing frame.
+
+There is **no image file** for this sprite in the repository. The art is
+inside the user's own ROM (USA/Europe, SHA-1
+`5c4695205413df7db52b9a184815a07783999971`).
+
+**Start with `shared_game/djinn_tracker.h`**, function `decode()`. It reads a
+field sprite from the ROM into a picture (frame 0 only, codec 3), and is the
+basis for an exporter.
+
+| Item | Location | Source file |
+|---|---|---|
+| Sprite ID | Isaac = 0 (Young Isaac = 18) | `shared_game/field_character.h`, `The Broken Seal/src/runner_main.cpp` |
+| Sprite records | `0x08185024 + id * 20`; Isaac at ROM file offset `0x185024` | `The Broken Seal/src/runner_main.cpp` |
+| Record fields | +0 width, +1 height, +5 pose count, +0xA codec, +0xC frame table, +0x10 pose table | `field_character.h`, `djinn_tracker.h` |
+| Poses | 1 = stand, 2 = walk | `field_character.h` |
+| Field sprite palette | `0x0800779C` (used for Djinn sprites) | `The Broken Seal/src/trackers_tbs.h` |
+
+Still to confirm against a ROM:
+
+- Isaac's frame size and codec.
+- Which frames and view angle are the walk towards the camera.
+- That the palette above is right for Isaac.
+
 ## Suggested prototype
 
-Render at 4x and replace one 4bpp character sprite using its original palette
-indices. Measure scaling correctness, matching and performance.
+Render at 4x and replace Isaac's walk frames using original palette indices.
+Measure scaling correctness, matching and performance.
+
+The decoder reads colour indices up to `0xDF`, which suggests field sprites are
+8bpp. If confirmed, the existing 4bpp-only fingerprint needs an 8bpp version.
 
 Generate textures locally from the user's own ROM; the repository ships no
 game data.
