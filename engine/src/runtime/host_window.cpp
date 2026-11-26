@@ -1858,6 +1858,8 @@ void HostWindow::present(const uint8_t* rgb888) {
     const bool supplied_native = b->native_scene_pending &&
         !b->native_fb.empty() && b->native_scene_w > 0 && b->native_scene_h > 0;
     if (!rgb888 && !supplied_native) return;
+    // The runner's picture before blending or colour grading (hd_frame.h).
+    const uint8_t* const runner_rgb888 = rgb888;
 
     // Phones: the graphics card's picture straight from its texture
     // (gpu_present.h), when this window shows the frame as it comes: no
@@ -2003,7 +2005,7 @@ void HostWindow::present(const uint8_t* rgb888) {
     // filters expect the native size, so they keep the native picture.
     const gbarecomp::HdFrame* hd =
         !use_native && !direct && b->screen_filter == ScreenFilter::Off
-            ? gbarecomp::hd_frame_for(rgb888, b->base_w, b->base_h) : nullptr;
+            ? gbarecomp::hd_frame_for(runner_rgb888, b->base_w, b->base_h) : nullptr;
     if (hd && !ensure_hd_texture(b, hd->base_w * hd->scale, hd->base_h * hd->scale))
         hd = nullptr;
     SDL_Texture* frame_texture = b->texture;
@@ -2035,6 +2037,12 @@ void HostWindow::present(const uint8_t* rgb888) {
         SDL_UpdateTexture(b->native_texture, nullptr, native_upload,
                           frame_w * 3);
     } else if (hd) {
+        // The 4x picture skips flicker blending; colour grading applies below.
+        static bool hd_reported = false;
+        if (!hd_reported) {
+            hd_reported = true;
+            std::fprintf(stderr, "[gsr-hd] window is showing the 4x picture\n");
+        }
         const uint8_t* upload = hd->pixels.data();
         if (b->color_lut && !b->color_lut->is_passthrough()) {
             b->hd_graded_fb.resize(hd->pixels.size());

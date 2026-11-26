@@ -67,6 +67,7 @@ is a smaller change for testing artwork.
 - Replacement art stays within about 2 of the 4x pixels of the original
   outline.
 - Sprites under fades, blends or other artwork keep original pixels there.
+- Frames showing replacement art skip the flicker-reduction blend.
 - Screen filters, the native renderer and Android's direct display path show
   the native picture.
 - Everything else on screen is a plain 4x enlargement.
