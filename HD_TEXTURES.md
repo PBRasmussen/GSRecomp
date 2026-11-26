@@ -1,7 +1,7 @@
 # 4x upscaled textures: investigation notes
 
 Status: a prototype exists for *The Broken Seal* field sprites (see
-"Prototype" below). It has not been tried in the real game. The investigation
+"Prototype" below). It has been built on Windows and seen working in the real game. The investigation
 notes after that section were written first, from reading the code at
 `1669a14`.
 
@@ -77,14 +77,17 @@ is a smaller change for testing artwork.
 
 ### Tested
 
+- Built on Windows with `setup_dev.py`; the replacement art showed in game
+  once the graphics-card renderer was ticked. The launcher also needed
+  `libz-1.dll` (now copied by `build_dev.ps1`) and the two cartridge images in
+  `assets/`, which the repository does not include (any PNGs will do).
 - The engine runtime library builds on Linux and `runner_main.cpp` passes a
-  syntax check (with a placeholder `recompiled.h`). No game or Windows build.
+  syntax check (with a placeholder `recompiled.h`). 
 - The compositor was tested with synthetic scenes under ASan/UBSan.
 - Extract and pack were run on a stand-in ROM made from an exported Isaac
   sheet, with an AI-redrawn walk sheet.
-- `setup_dev.py` was run on Linux up to code generation with a blank
-  stand-in ROM; not run on Windows.
-- Unconfirmed: that video memory in the real game matches the ROM frames.
+- A memory snapshot showed Isaac's standing frame in video memory matching the
+  ROM frame index for index.
 
 ## Summary
 
