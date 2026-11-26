@@ -70,6 +70,7 @@
 #include "gl_platform.h"
 #include "touch_controls.h"
 #include "gpu_present.h"
+#include "hd_frame.h"
 
 namespace gbarecomp {
 
@@ -426,6 +427,9 @@ struct Backend {
     bool screen_filters_on = false;
     bool resize_driven_view = false;
     bool linear_filter = false;
+    SDL_Texture* hd_texture = nullptr;  // hd_frame.h
+    int hd_w = 0, hd_h = 0;
+    std::vector<uint8_t> hd_graded_fb;
     bool native_renderer = false;
     bool native_renderer_game_allowed = false;
     int native_scale = 2;
@@ -642,6 +646,19 @@ bool ensure_native_texture(Backend* b) {
     }
     SDL_SetTextureScaleMode(b->native_texture, SDL_ScaleModeNearest);
     b->native_fb.resize(static_cast<std::size_t>(w) * h * 3u);
+    return true;
+}
+
+// Linear: the 4x picture is usually shrunk or unevenly scaled to the window.
+bool ensure_hd_texture(Backend* b, int w, int h) {
+    if (b->hd_texture && b->hd_w == w && b->hd_h == h) return true;
+    if (b->hd_texture) SDL_DestroyTexture(b->hd_texture);
+    b->hd_texture = SDL_CreateTexture(b->renderer, SDL_PIXELFORMAT_RGB24,
+                                      SDL_TEXTUREACCESS_STREAMING, w, h);
+    if (!b->hd_texture) return false;
+    SDL_SetTextureScaleMode(b->hd_texture, SDL_ScaleModeLinear);
+    b->hd_w = w;
+    b->hd_h = h;
     return true;
 }
 
@@ -1560,6 +1577,7 @@ void HostWindow::close() {
     notify_frame_present_shutdown();
     if (b->texture)   SDL_DestroyTexture(b->texture);
     destroy_native_texture(b);
+    if (b->hd_texture) SDL_DestroyTexture(b->hd_texture);
     screen_filter_shutdown();
     release_cover_art();
     if (b->renderer)  SDL_DestroyRenderer(b->renderer);
@@ -1840,6 +1858,8 @@ void HostWindow::present(const uint8_t* rgb888) {
     const bool supplied_native = b->native_scene_pending &&
         !b->native_fb.empty() && b->native_scene_w > 0 && b->native_scene_h > 0;
     if (!rgb888 && !supplied_native) return;
+    // The runner's picture before blending or colour grading (hd_frame.h).
+    const uint8_t* const runner_rgb888 = rgb888;
 
     // Phones: the graphics card's picture straight from its texture
     // (gpu_present.h), when this window shows the frame as it comes: no
@@ -1981,6 +2001,13 @@ void HostWindow::present(const uint8_t* rgb888) {
         }
     }
     const bool use_native = b->native_renderer && ensure_native_texture(b);
+    // A runner's larger copy of this exact picture (hd_frame.h). Screen
+    // filters expect the native size, so they keep the native picture.
+    const gbarecomp::HdFrame* hd =
+        !use_native && !direct && b->screen_filter == ScreenFilter::Off
+            ? gbarecomp::hd_frame_for(runner_rgb888, b->base_w, b->base_h) : nullptr;
+    if (hd && !ensure_hd_texture(b, hd->base_w * hd->scale, hd->base_h * hd->scale))
+        hd = nullptr;
     SDL_Texture* frame_texture = b->texture;
     int frame_w = b->base_w;
     int frame_h = b->base_h;
@@ -2009,6 +2036,22 @@ void HostWindow::present(const uint8_t* rgb888) {
         }
         SDL_UpdateTexture(b->native_texture, nullptr, native_upload,
                           frame_w * 3);
+    } else if (hd) {
+        // The 4x picture skips flicker blending; colour grading applies below.
+        static bool hd_reported = false;
+        if (!hd_reported) {
+            hd_reported = true;
+            std::fprintf(stderr, "[gsr-hd] window is showing the 4x picture\n");
+        }
+        const uint8_t* upload = hd->pixels.data();
+        if (b->color_lut && !b->color_lut->is_passthrough()) {
+            b->hd_graded_fb.resize(hd->pixels.size());
+            b->color_lut->map_rgb888(upload, b->hd_graded_fb.data(),
+                                     b->hd_w, b->hd_h);
+            upload = b->hd_graded_fb.data();
+        }
+        SDL_UpdateTexture(b->hd_texture, nullptr, upload, b->hd_w * 3);
+        frame_texture = b->hd_texture;
     } else if (!direct) {
         SDL_UpdateTexture(b->texture, nullptr, diagnostic_rgb888,
                           b->base_w * 3);
@@ -2107,6 +2150,9 @@ void HostWindow::present(const uint8_t* rgb888) {
                 layout.x, layout.y, layout.width, layout.height};
             const SDL_Rect source = {(frame_w - shown_w) / 2, 0, shown_w,
                                      frame_h};
+            const int hd_k = hd ? hd->scale : 1;
+            const SDL_Rect hd_source = {source.x * hd_k, 0, source.w * hd_k,
+                                        source.h * hd_k};
             // Test-only screen filter; falls back to the plain copy below
             // whenever it cannot draw.
             const bool filtered =
@@ -2124,7 +2170,7 @@ void HostWindow::present(const uint8_t* rgb888) {
             // 3:2 copies the whole texture, exactly as before 4:3 existed.
             if (!filtered && !drawn_direct)
                 SDL_RenderCopy(b->renderer, frame_texture,
-                               shown_w < frame_w ? &source : nullptr,
+                               shown_w < frame_w ? &hd_source : nullptr,
                                &destination);
         }
     }

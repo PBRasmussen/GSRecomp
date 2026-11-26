@@ -26,6 +26,8 @@
 #include "snapshot_pool.h"
 #include "frame_history.h"
 #include "texture_readback_queue.h"
+#include "hd_frame.h"
+#include "hd_sprites.h"
 #include "gpu_present.h"
 #include "crash_handler.h"
 #include "game_ram_layout.h"
@@ -10028,8 +10030,45 @@ void paint_enemy_hp_bar(std::uint8_t* rgb, std::uint32_t width,
 // (gpu_present.h GpuOverlayLayer; neither painter reads the picture).
 gbarecomp::GpuOverlayLayer g_overlay_layer;
 
+// Prototype 4x sprite artwork (engine/src/field/hd_sprites.h). Off unless
+// GSR_HD_PACK names a pack file and the graphics-card renderer is on. The
+// file is looked at about once a second and read again when it changes.
+gsr::hd::Pack* hd_sprite_pack() {
+    static gsr::hd::Pack pack;
+    static const char* path = std::getenv("GSR_HD_PACK");
+    if (!path || !*path) return nullptr;
+    static std::filesystem::file_time_type loaded_time{};
+    static unsigned calls = 0;
+    if (calls++ % 60 == 0) {
+        std::error_code error;
+        const auto time = std::filesystem::last_write_time(path, error);
+        if (!error && time != loaded_time) {
+            loaded_time = time;
+            const bool ok = gsr::hd::load_pack(path, &pack);
+            std::fprintf(stderr, "[gsr-hd] %s %s (%zu frames)\n",
+                         ok ? "loaded" : "could not load", path, pack.frames.size());
+        }
+    }
+    return pack.frames.empty() ? nullptr : &pack;
+}
+
+// Offers the window a 4x copy of the finished picture when it shows replaced
+// artwork. `scene` is the description that picture was drawn from.
+void offer_hd_frame(const gbarecomp::SceneSnapshot* scene, const std::uint8_t* rgb,
+                    std::uint32_t width, std::uint32_t height) {
+    gsr::hd::Pack* pack = hd_sprite_pack();
+    if (!pack || !scene) return;
+    // Every scene this runner records is a GpuFieldCapture.
+    const auto& capture = static_cast<const gsr::GpuFieldCapture&>(*scene);
+    static std::vector<std::uint8_t> pixels;
+    if (gsr::hd::compose(*pack, capture.scene, capture.vram, rgb, int(width),
+                         int(height), &pixels) > 0)
+        gbarecomp::hd_frame_offer(rgb, int(width), int(height), gsr::hd::kScale, pixels);
+}
+
 bool golden_sun_present_override(std::uint8_t* rgb, std::uint32_t width,
                                  std::uint32_t height) {
+    gbarecomp::hd_frame_withdraw();
     auto frame = gbarecomp::FrameHistory::capture();
     frame.battle_2x = battle_speed_indicator_visible();
     const gba::GbaPpu* ppu = gbarecomp::active_ppu();
@@ -10069,6 +10108,7 @@ bool golden_sun_present_override(std::uint8_t* rgb, std::uint32_t width,
         drawn = true;
     }
     const bool battle = frame.battle_2x;
+    const auto shown_scene = frame.scene;  // `frame` is moved away below
     std::uint8_t* const layer = direct ? g_overlay_layer.begin(width, height) : rgb;
     if (battle) paint_battle_speed_indicator(layer, width, height);
     g_history.record(direct ? nullptr : rgb, width, height, std::move(frame));
@@ -10124,6 +10164,9 @@ bool golden_sun_present_override(std::uint8_t* rgb, std::uint32_t width,
     // The new-game questions, over the running game.
     const bool question = g_hard_prompt_open;
     if (question) cheat_menu_paint(rgb, width, height);
+    // Last, so it is made from the picture as it will be shown. A phone's
+    // direct-from-card picture has no copy here to work from.
+    if (!direct) offer_hd_frame(shown_scene.get(), rgb, width, height);
     return drawn || battle || hp_bar || panel.open || files || travel || radial || notice || question;
 }
 
