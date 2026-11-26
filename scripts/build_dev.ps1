@@ -284,6 +284,9 @@ try {
         if (-not $found.Count) { throw "Collection launcher dependency is missing: $dll" }
         $runtimeDlls[$dll] = [IO.Path]::GetFullPath($found[0])
     }
+    # Some MSYS2 zlib packages name the DLL libz-1.dll; ship it when present.
+    $libz = Join-Path $compilerBin 'libz-1.dll'
+    if (Test-Path -LiteralPath $libz -PathType Leaf) { $runtimeDlls['libz-1.dll'] = [IO.Path]::GetFullPath($libz) }
     $launcherStep = if ($SkipLauncher) { 'collection launcher skipped' } else { 'then the collection launcher' }
     Write-Host "CPU/RAM budgets: $CpuPercent% / $RamPercent%. Selected games: $Game; $launcherStep."
     if ($CheckOnly) {
