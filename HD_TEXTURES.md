@@ -25,8 +25,18 @@ under `local/hd/x4`. Add `--id 0` for Isaac only.
 2. Save it under the same path in `x4`, for example
    `local/hd/x4/sprite_000/walk_front.png`. Only put redrawn sheets there.
 3. Pack: `py scripts/hd/hd_sprites.py pack`
-4. Build with `build_dev.bat -Game BrokenSeal` (needs a configured developer
-   build, see `The Broken Seal/README.md`).
+4. Build. On a fresh clone, install MSYS2 and these packages, then run
+   `py scripts/setup_dev.py`, which generates the game code from your ROM,
+   configures the build and runs it:
+
+   ```powershell
+   winget install --id MSYS2.MSYS2
+   C:\msys64\usr\bin\pacman.exe -Syu --noconfirm
+   C:\msys64\usr\bin\pacman.exe -S --needed --noconfirm mingw-w64-x86_64-gcc mingw-w64-x86_64-make mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja mingw-w64-x86_64-SDL2 mingw-w64-x86_64-zlib
+   ```
+
+   Later builds: add `C:\msys64\mingw64\bin` to `PATH`, then
+   `.\build_dev.bat -Game BrokenSeal`.
 5. Set `GSR_HD_PACK` to the full path of `local/hd/sprites.pack` and start
    the launcher from the same shell:
 
@@ -68,6 +78,8 @@ is a smaller change for testing artwork.
 - The compositor was tested with synthetic scenes under ASan/UBSan.
 - Extract and pack were run on a stand-in ROM made from an exported Isaac
   sheet, with an AI-redrawn walk sheet.
+- `setup_dev.py` was run on Linux up to code generation with a blank
+  stand-in ROM; not run on Windows.
 - Unconfirmed: that video memory in the real game matches the ROM frames.
 
 ## Summary
