@@ -1,7 +1,74 @@
 # 4x upscaled textures: investigation notes
 
-Status: investigation only. Based on reading the code at `1669a14`; nothing
-here has been built, run or measured. No code changes.
+Status: a prototype exists for *The Broken Seal* field sprites (see
+"Prototype" below). It has not been tried in the real game. The investigation
+notes after that section were written first, from reading the code at
+`1669a14`.
+
+## Prototype
+
+### Use
+
+From the repository root, with your ROM in `ROMs/`:
+
+```text
+py -m pip install pillow
+py scripts/hd/hd_sprites.py extract
+```
+
+This makes `local/hd/base/sprite_NNN/*.png` (sheets of 4x2 frames, enlarged
+8x on magenta, each with a `.json` describing it) and matching empty folders
+under `local/hd/x4`. Add `--id 0` for Isaac only.
+
+1. Redraw a base sheet. Keep the grid, proportions and flat magenta
+   background; any resolution works.
+2. Save it under the same path in `x4`, for example
+   `local/hd/x4/sprite_000/walk_front.png`. Only put redrawn sheets there.
+3. Pack: `py scripts/hd/hd_sprites.py pack`
+4. Build with `build_dev.bat -Game BrokenSeal` (needs a configured developer
+   build, see `The Broken Seal/README.md`).
+5. Set `GSR_HD_PACK` to the full path of `local/hd/sprites.pack` and start
+   the launcher from the same shell:
+
+```powershell
+$env:GSR_HD_PACK = "$PWD\local\hd\sprites.pack"
+.\GoldenSunLauncher.exe
+```
+
+Packing again while the game runs reloads the pack within about a second.
+Lines starting `[gsr-hd]` in `logs/session_*.log` should show the pack loading
+and each frame the first time it is matched.
+
+### How it works
+
+The finished native picture is enlarged 4x. Where it shows a pixel of a
+sprite in the pack, in the expected colour, the 4x4 block takes the
+replacement pixels (`engine/src/field/hd_sprites.h`). The window shows that
+copy only for the exact picture it was made from
+(`engine/src/runtime/hd_frame.h`). Replacements are palette indices, so
+palette changes apply. This differs from the shader route suggested below: it
+is a smaller change for testing artwork.
+
+### Limitations
+
+- *The Broken Seal* only, and the graphics-card renderer must be on.
+- Only codec 3 field sprites are extracted, using one shared palette, which
+  may be wrong for some. Sheets are in frame order, so directions are mixed.
+- Replacement art stays within about 2 of the 4x pixels of the original
+  outline.
+- Sprites under fades, blends or other artwork keep original pixels there.
+- Screen filters, the native renderer and Android's direct display path show
+  the native picture.
+- Everything else on screen is a plain 4x enlargement.
+
+### Tested
+
+- The engine runtime library builds on Linux and `runner_main.cpp` passes a
+  syntax check (with a placeholder `recompiled.h`). No game or Windows build.
+- The compositor was tested with synthetic scenes under ASan/UBSan.
+- Extract and pack were run on a stand-in ROM made from an exported Isaac
+  sheet, with an AI-redrawn walk sheet.
+- Unconfirmed: that video memory in the real game matches the ROM frames.
 
 ## Summary
 
@@ -85,7 +152,7 @@ Still to confirm against a ROM:
 - Which frames and view angle are the walk towards the camera.
 - That the palette above is right for Isaac.
 
-## Suggested prototype
+## Originally suggested prototype
 
 Render at 4x and replace Isaac's walk frames using original palette indices.
 Measure scaling correctness, matching and performance.
