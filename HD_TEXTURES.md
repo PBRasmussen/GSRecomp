@@ -46,7 +46,10 @@ $env:GSR_HD_PACK = "$PWD\local\hd\sprites.pack"
 ```
 
 Packing again while the game runs reloads the pack within about a second.
-Lines starting `[gsr-hd]` in `logs/session_*.log` should show the pack loading
+In the launcher settings, under The Broken Seal's Game options, tick **Draw
+the field with the graphics card** (off by default).
+
+Lines starting `[gsr-hd]` in `The Broken Seal/logs/session_*.log` should show the pack loading
 and each frame the first time it is matched.
 
 ### How it works
@@ -86,7 +89,7 @@ is a smaller change for testing artwork.
 ## Summary
 
 4x textures look feasible. The graphics-card renderer
-(`engine/src/field/field_scene_renderer.cpp`), enabled by default in the
+(`engine/src/field/field_scene_renderer.cpp`), off by default in the developer
 launcher, is the natural place to add them.
 
 ## What helps
