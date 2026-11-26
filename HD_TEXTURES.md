@@ -52,6 +52,21 @@ the field with the graphics card** (off by default).
 Lines starting `[gsr-hd]` in `The Broken Seal/logs/session_*.log` should show the pack loading
 and each frame the first time it is matched.
 
+### Battle sprites
+
+There is no ROM extractor for these yet. Take a memory snapshot instead: start
+the game with `GBARECOMP_MEM_DUMP="<frame>:<full path>\local\hd\battle.bin"`
+(written once, when the game reaches that frame, about 60 per second), then:
+
+```text
+py scripts/hd/hd_sprites.py snapshot local/hd/battle.bin
+```
+
+Each distinct sprite on screen becomes its own sheet in `local/hd/base/battle`.
+Redraw, save under the same name in `local/hd/x4/battle`, and `pack`. Only the
+animation frames captured are replaced. Snapshots and sheets contain game art;
+keep them in `local/`.
+
 ### How it works
 
 The finished native picture is enlarged 4x. Where it shows a pixel of a
